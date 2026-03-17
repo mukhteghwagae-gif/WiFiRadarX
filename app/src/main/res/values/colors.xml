@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#00D4FF</color>
+    <color name="primaryDark">#0099BB</color>
+    <color name="secondary">#7C3AED</color>
+    <color name="background">#07090F</color>
+    <color name="surface">#12141D</color>
+    <color name="surfaceVariant">#1C1F2E</color>
+    <color name="onPrimary">#000000</color>
+    <color name="onSecondary">#FFFFFF</color>
+    <color name="onBackground">#E2E8F0</color>
+    <color name="onSurface">#E2E8F0</color>
+    <color name="error">#FF4B4B</color>
+    <color name="onError">#FFFFFF</color>
+    <color name="success">#4BFF4B</color>
+    <color name="warning">#FFB84B</color>
+    <!-- Legacy colorPrimary etc. for Material 3 compat -->
+    <color name="colorPrimary">#00D4FF</color>
+    <color name="colorPrimaryDark">#0099BB</color>
+    <color name="colorAccent">#7C3AED</color>
+</resources>

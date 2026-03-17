@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- WiFi Permissions -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
+    <!-- Location Permissions (required for WiFi scanning on Android 10+) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Camera for AR -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Network -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- System -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Bluetooth (for BLE scanning) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Storage (legacy) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- Hardware features -->
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="true" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <application
+        android:name=".WiFiRadarXApplication"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.WiFiRadarX"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".ui.activities.OnboardingActivity"
+            android:exported="true"
+            android:theme="@style/Theme.WiFiRadarX">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.activities.MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiFiRadarX" />
+
+        <activity android:name=".ui.activities.ArMappingActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.LiveRadarActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.AnalyticsDashboardActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.ChannelAnalyzerActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.SecurityAuditActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.DeviceHunterActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.TimeLapseActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.MeshOptimizerActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.HeatmapActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.NetworkListActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+        <activity android:name=".ui.activities.SettingsActivity"
+            android:theme="@style/Theme.WiFiRadarX" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.wifiradarx.app.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- ARCore optional -->
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="optional" />
+
+    </application>
+
+</manifest>
