@@ -1,0 +1,80 @@
+name: Build and Sign APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK Licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install SDK Components
+        run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkeypair \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=WiFiRadarX,O=Debug,C=US"
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Rename APK
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "Found APK: $APK"
+          cp "$APK" WiFiRadarX-v3.0.0-release.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WiFiRadarX-v3.0.0
+          path: WiFiRadarX-v3.0.0-release.apk
+          retention-days: 30
+
+      - name: Build Summary
+        run: |
+          echo "### ✅ Build Success" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| APK | WiFiRadarX-v3.0.0-release.apk |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | $(du -h WiFiRadarX-v3.0.0-release.apk | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA256 | $(sha256sum WiFiRadarX-v3.0.0-release.apk | cut -d' ' -f1) |" >> $GITHUB_STEP_SUMMARY
