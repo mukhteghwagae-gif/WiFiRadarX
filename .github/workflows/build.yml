@@ -29,6 +29,14 @@ jobs:
       - name: Install SDK Components
         run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Fix Gradle Wrapper JAR
+        run: |
+          wget -q "https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar" \
+            -O gradle/wrapper/gradle-wrapper.jar || \
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar
+          echo "Wrapper JAR size: $(du -h gradle/wrapper/gradle-wrapper.jar | cut -f1)"
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
