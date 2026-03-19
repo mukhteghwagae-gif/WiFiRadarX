@@ -11,7 +11,7 @@ jobs:
   build:
     name: Build Release APK
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────────────────
@@ -25,19 +25,31 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # ── 3. Android SDK ───────────────────────────────────────────────────────
+      # ── 3. Download gradle-wrapper.jar (not committed to repo) ────────────────
+      - name: Download gradle-wrapper.jar
+        run: |
+          mkdir -p gradle/wrapper
+          curl -sL \
+            "https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar \
+            --location --max-time 60
+          ls -lh gradle/wrapper/gradle-wrapper.jar
+          file gradle/wrapper/gradle-wrapper.jar
+
+      # ── 4. Android SDK ───────────────────────────────────────────────────────
       - name: Download Android SDK command-line tools
         run: |
           mkdir -p $HOME/android-sdk/cmdline-tools
-          wget -q "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
-               -O /tmp/cmdtools.zip
+          wget -q \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+            -O /tmp/cmdtools.zip
           unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools_extracted
           mv /tmp/cmdtools_extracted/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/android-sdk"       >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk"   >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools"          >> $GITHUB_PATH
+          echo "$HOME/android-sdk/build-tools/34.0.0"      >> $GITHUB_PATH
 
       - name: Accept SDK licenses
         run: yes | sdkmanager --licenses
@@ -53,7 +65,7 @@ jobs:
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
-      # ── 4. Gradle cache ──────────────────────────────────────────────────────
+      # ── 5. Gradle cache ──────────────────────────────────────────────────────
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -64,11 +76,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # ── 5. Gradle wrapper executable ─────────────────────────────────────────
+      # ── 6. Make gradlew executable ───────────────────────────────────────────
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # ── 6. Generate debug keystore ───────────────────────────────────────────
+      # ── 7. Generate debug keystore ───────────────────────────────────────────
       - name: Generate debug keystore
         run: |
           keytool -genkeypair \
@@ -80,24 +92,25 @@ jobs:
             -keysize 2048 \
             -validity 10000 \
             -dname "CN=WiFiRadarX,O=Debug,C=US"
-          echo "Keystore generated: $(ls -lh debug.keystore)"
+          echo "Keystore: $(ls -lh debug.keystore)"
 
-      # ── 7. Build release APK ─────────────────────────────────────────────────
+      # ── 8. Build release APK ─────────────────────────────────────────────────
       - name: Build release APK
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        run: |
+          ./gradlew assembleRelease --stacktrace --no-daemon
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
 
-      # ── 8. Locate APK ────────────────────────────────────────────────────────
+      # ── 9. Locate APK ────────────────────────────────────────────────────────
       - name: Locate APK
         id: find_apk
         run: |
-          APK_PATH=$(find . -name "*.apk" -path "*/release/*" | head -1)
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          echo "Found APK: $APK_PATH"
+          APK=$(find . -name "*.apk" -path "*/release/*" | head -1)
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+          echo "Found: $APK  ($(du -sh $APK | cut -f1))"
 
-      # ── 9. Sign APK with apksigner ───────────────────────────────────────────
+      # ── 10. Sign APK ─────────────────────────────────────────────────────────
       - name: Sign APK
         run: |
           apksigner sign \
@@ -107,44 +120,44 @@ jobs:
             --ks-key-alias androiddebugkey \
             --out WiFiRadarX-v3.0.0.apk \
             "${{ steps.find_apk.outputs.apk_path }}"
-          echo "Signed APK: WiFiRadarX-v3.0.0.apk"
+          echo "Signed: WiFiRadarX-v3.0.0.apk"
 
-      # ── 10. Verify signature ─────────────────────────────────────────────────
+      # ── 11. Verify signature ─────────────────────────────────────────────────
       - name: Verify APK signature
         run: |
           apksigner verify --verbose WiFiRadarX-v3.0.0.apk
           echo "✅ Signature verified"
 
-      # ── 11. Compute checksum ─────────────────────────────────────────────────
+      # ── 12. Compute checksum ─────────────────────────────────────────────────
       - name: Compute SHA256
         id: sha
         run: |
           SHA=$(sha256sum WiFiRadarX-v3.0.0.apk | awk '{print $1}')
           SIZE=$(du -sh WiFiRadarX-v3.0.0.apk | awk '{print $1}')
-          echo "sha256=$SHA" >> $GITHUB_OUTPUT
-          echo "size=$SIZE"  >> $GITHUB_OUTPUT
+          echo "sha256=$SHA"  >> $GITHUB_OUTPUT
+          echo "size=$SIZE"   >> $GITHUB_OUTPUT
           echo "SHA256: $SHA"
-          echo "Size:   $SIZE"
+          echo "Size  : $SIZE"
 
-      # ── 12. Upload artifact ──────────────────────────────────────────────────
-      - name: Upload APK artifact
+      # ── 13. Upload artifact ──────────────────────────────────────────────────
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: WiFiRadarX-v3.0.0
           path: WiFiRadarX-v3.0.0.apk
           retention-days: 30
 
-      # ── 13. Job summary ──────────────────────────────────────────────────────
+      # ── 14. Job summary ──────────────────────────────────────────────────────
       - name: Write job summary
         run: |
-          echo "## ✅ WiFiRadarX v3.0.0 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| APK | \`WiFiRadarX-v3.0.0.apk\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Size | ${{ steps.sha.outputs.size }} |" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ WiFiRadarX v3.0.0 Build Summary"      >> $GITHUB_STEP_SUMMARY
+          echo ""                                             >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |"                           >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|"                           >> $GITHUB_STEP_SUMMARY
+          echo "| APK | \`WiFiRadarX-v3.0.0.apk\` |"       >> $GITHUB_STEP_SUMMARY
+          echo "| Size | ${{ steps.sha.outputs.size }} |"   >> $GITHUB_STEP_SUMMARY
           echo "| SHA256 | \`${{ steps.sha.outputs.sha256 }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Built at | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Min SDK | 26 (Android 8.0) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Target SDK | 34 (Android 14) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |"         >> $GITHUB_STEP_SUMMARY
+          echo "| Built | $(date -u +'%Y-%m-%d %H:%M UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Min SDK | 26 (Android 8.0) |"             >> $GITHUB_STEP_SUMMARY
+          echo "| Target SDK | 34 (Android 14) |"           >> $GITHUB_STEP_SUMMARY
