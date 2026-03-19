@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
+<paths>
+    <external-path
+        name="my_documents"
+        path="Android/data/com.wifiradarx.app/files/Documents" />
     <external-files-path
-        name="documents"
-        path="Documents/" />
-    <external-files-path
-        name="exports"
-        path="." />
-    <files-path
-        name="internal_files"
+        name="external_files"
         path="." />
     <cache-path
-        name="cache"
+        name="cache_files"
         path="." />
 </paths>

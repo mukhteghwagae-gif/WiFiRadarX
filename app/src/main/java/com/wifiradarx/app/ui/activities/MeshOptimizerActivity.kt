@@ -1,52 +1,80 @@
 package com.wifiradarx.app.ui.activities
 
+import android.graphics.Color
 import android.os.Bundle
-import android.widget.TextView
-import androidx.activity.viewModels
+import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import com.wifiradarx.app.R
-import com.wifiradarx.app.ui.viewmodel.MainViewModel
-import com.wifiradarx.app.ui.viewmodel.MeshViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
+import com.github.mikephil.charting.data.RadarData
+import com.github.mikephil.charting.data.RadarDataSet
+import com.github.mikephil.charting.data.RadarEntry
+import com.wifiradarx.app.databinding.ActivityMeshOptimizerBinding
+import com.wifiradarx.app.intelligence.SimulatedAnnealingOptimizer
 
 class MeshOptimizerActivity : AppCompatActivity() {
-
-    private val vm     : MeshViewModel by viewModels()
-    private val mainVm : MainViewModel  by viewModels()
+    private lateinit var binding: ActivityMeshOptimizerBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_mesh_optimizer)
-        supportActionBar?.title = "Mesh Optimizer"
+        binding = ActivityMeshOptimizerBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        val tvZones = findViewById<TextView>(R.id.tv_dead_zones)
-        val tvRecs  = findViewById<TextView>(R.id.tv_ap_recommendations)
-
-        lifecycleScope.launch {
-            mainVm.allScans.collectLatest { scans -> vm.compute(scans) }
+        supportActionBar?.apply {
+            setDisplayHomeAsUpEnabled(true)
+            title = "Mesh Optimizer"
         }
 
-        lifecycleScope.launch {
-            vm.deadZones.collect { zones ->
-                tvZones?.text = if (zones.isEmpty()) "No dead zones detected"
-                else zones.joinToString("\n") { z ->
-                    "${z.severity.name}: ${z.areaCells} cells at " +
-                    "(${"%.1f".format(z.centroidX)}, ${"%.1f".format(z.centroidY)}) " +
-                    "avg ${z.avgSignal.toInt()} dBm"
-                }
-            }
+        runOptimization()
+        setupRadarChart()
+    }
+
+    private fun runOptimization() {
+        val optimizer = SimulatedAnnealingOptimizer()
+        val channels = listOf(1, 6, 11)
+        val result = optimizer.optimize(4, channels)
+        binding.optimizationResultText.text =
+            "Optimal channels: AP1→${result[0]}, AP2→${result[1]}, AP3→${result[2]}, AP4→${result[3]}"
+        binding.optimizationSubText.text = "Interference minimized via simulated annealing"
+    }
+
+    private fun setupRadarChart() {
+        val coverageEntries = listOf(
+            RadarEntry(0.9f), RadarEntry(0.75f), RadarEntry(0.85f),
+            RadarEntry(0.6f), RadarEntry(0.8f), RadarEntry(0.7f)
+        )
+        val deadZoneEntries = listOf(
+            RadarEntry(0.1f), RadarEntry(0.25f), RadarEntry(0.15f),
+            RadarEntry(0.4f), RadarEntry(0.2f), RadarEntry(0.3f)
+        )
+
+        val coverageSet = RadarDataSet(coverageEntries, "Coverage").apply {
+            color = Color.parseColor("#00D4FF")
+            fillColor = Color.parseColor("#4400D4FF")
+            setDrawFilled(true)
+            valueTextColor = Color.WHITE
+        }
+        val deadZoneSet = RadarDataSet(deadZoneEntries, "Dead Zones").apply {
+            color = Color.parseColor("#FF4B4B")
+            fillColor = Color.parseColor("#44FF4B4B")
+            setDrawFilled(true)
+            valueTextColor = Color.WHITE
         }
 
-        lifecycleScope.launch {
-            vm.apRecs.collect { recs ->
-                tvRecs?.text = if (recs.isEmpty()) "Scan more area for recommendations"
-                else recs.joinToString("\n") { r ->
-                    "#${r.priority}: Place AP at " +
-                    "(${"%.1f".format(r.x)}, ${"%.1f".format(r.y)}) — ${r.reason}"
-                }
-            }
+        binding.meshRadarChart.apply {
+            data = RadarData(coverageSet, deadZoneSet)
+            description.isEnabled = false
+            setBackgroundColor(Color.parseColor("#12141D"))
+            yAxis.textColor = Color.WHITE
+            xAxis.textColor = Color.WHITE
+            legend.textColor = Color.WHITE
+            webColor = Color.parseColor("#33FFFFFF")
+            webColorInner = Color.parseColor("#22FFFFFF")
+            animateXY(800, 800)
+            invalidate()
         }
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == android.R.id.home) { finish(); return true }
+        return super.onOptionsItemSelected(item)
     }
 }

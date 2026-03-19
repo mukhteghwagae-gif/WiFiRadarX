@@ -1,62 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
-    android:orientation="vertical">
+    android:background="@color/background">
 
-    <!-- Filter bar -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/surface"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="8dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Session: "
-            android:textColor="@color/on_surface_variant"
-            android:textSize="13sp"
-            android:layout_marginEnd="6dp" />
-
-        <Spinner
-            android:id="@+id/spin_session_filter"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1" />
-    </LinearLayout>
-
-    <!-- Color legend -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/surface"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="6dp">
-
-        <View android:layout_width="16dp" android:layout_height="16dp"
-            android:background="#FF4444FF" android:layout_marginEnd="4dp" />
-        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:text="Weak"
-            android:textColor="@color/on_surface_variant" android:textSize="11sp" />
-
-        <View android:layout_width="16dp" android:layout_height="16dp"
-            android:background="#FF00FFAA" android:layout_marginEnd="4dp" />
-        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:text="Strong"
-            android:textColor="@color/on_surface_variant" android:textSize="11sp" />
-    </LinearLayout>
-
-    <!-- Heatmap canvas -->
-    <com.wifiradarx.app.ui.views.HeatmapView
-        android:id="@+id/heatmap_view"
+    <FrameLayout
+        android:id="@+id/heatmapContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/legendBar" />
 
-</LinearLayout>
+    <LinearLayout
+        android:id="@+id/legendBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/surface"
+        android:padding="12dp"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <TextView
+            android:id="@+id/heatmapLegendMin"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="-100 dBm (weak)"
+            android:textColor="#4444FF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/heatmapLegendMax"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:text="-30 dBm (strong)"
+            android:textColor="#FF4444"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

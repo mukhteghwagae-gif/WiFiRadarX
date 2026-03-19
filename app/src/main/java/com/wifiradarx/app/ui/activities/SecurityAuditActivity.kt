@@ -1,85 +1,68 @@
 package com.wifiradarx.app.ui.activities
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.wifi.WifiManager
 import android.os.Bundle
-import android.view.*
-import android.widget.TextView
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.wifiradarx.app.R
-import com.wifiradarx.app.data.entity.WifiScanResult
+import androidx.core.app.ActivityCompat
+import com.wifiradarx.app.databinding.ActivitySecurityAuditBinding
 import com.wifiradarx.app.intelligence.SecurityAuditor
-import com.wifiradarx.app.ui.viewmodel.MainViewModel
-import com.wifiradarx.app.ui.viewmodel.SecurityViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 class SecurityAuditActivity : AppCompatActivity() {
-
-    private val vm     : SecurityViewModel by viewModels()
-    private val mainVm : MainViewModel     by viewModels()
+    private lateinit var binding: ActivitySecurityAuditBinding
+    private val auditor = SecurityAuditor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_security_audit)
+        binding = ActivitySecurityAuditBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         supportActionBar?.title = "Security Audit"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        runAudit()
+    }
 
-        val rv = findViewById<RecyclerView>(R.id.rv_security)
-        rv.layoutManager = LinearLayoutManager(this)
-        val adapter = AuditAdapter()
-        rv.adapter = adapter
+    private fun runAudit() {
+        if (ActivityCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            binding.securityScoreText.text = "–"
+            binding.securityBadge.text = "NEEDS LOCATION PERMISSION"
+            return
+        }
+        val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+        val results = wifiManager.scanResults ?: emptyList()
 
-        lifecycleScope.launch {
-            mainVm.allScans.collectLatest { scans -> vm.audit(scans) }
+        if (results.isEmpty()) {
+            binding.securityScoreText.text = "N/A"
+            binding.securityBadge.text = "NO SCAN DATA"
+            return
         }
-        lifecycleScope.launch {
-            vm.auditResults.collect { results -> adapter.submitList(results) }
-        }
-        lifecycleScope.launch {
-            vm.overallRating.collect { rating ->
-                findViewById<TextView>(R.id.tv_overall_rating)?.text = rating
+
+        // Audit each network, show average score for connected network
+        val connected = wifiManager.connectionInfo
+        val primary = results.firstOrNull { it.BSSID == connected.bssid }
+        val score = if (primary != null) auditor.audit(primary.capabilities) else
+            results.map { auditor.audit(it.capabilities) }.average().toInt()
+
+        binding.securityScoreText.text = score.toString()
+        when {
+            score >= 70 -> {
+                binding.securityBadge.text = "SECURE"
+                binding.securityBadge.setTextColor(Color.parseColor("#4BFF4B"))
+            }
+            score >= 40 -> {
+                binding.securityBadge.text = "MODERATE RISK"
+                binding.securityBadge.setTextColor(Color.parseColor("#FFB84B"))
+            }
+            else -> {
+                binding.securityBadge.text = "HIGH RISK"
+                binding.securityBadge.setTextColor(Color.parseColor("#FF4B4B"))
             }
         }
     }
-}
 
-class AuditAdapter :
-    RecyclerView.Adapter<AuditAdapter.VH>() {
-
-    private var items: List<Pair<WifiScanResult, SecurityAuditor.AuditResult>> = emptyList()
-
-    fun submitList(list: List<Pair<WifiScanResult, SecurityAuditor.AuditResult>>) {
-        items = list
-        notifyDataSetChanged()
-    }
-
-    inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-        val tvSsid   : TextView = v.findViewById(R.id.tv_audit_ssid)
-        val tvScore  : TextView = v.findViewById(R.id.tv_audit_score)
-        val tvBadges : TextView = v.findViewById(R.id.tv_audit_badges)
-        val tvIssues : TextView = v.findViewById(R.id.tv_audit_issues)
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        VH(LayoutInflater.from(parent.context).inflate(R.layout.item_audit, parent, false))
-
-    override fun getItemCount() = items.size
-
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val (scan, audit) = items[position]
-        holder.tvSsid.text   = scan.ssid.ifBlank { "<hidden>" }
-        holder.tvScore.text  = "${audit.score}/100"
-        holder.tvScore.setTextColor(
-            when (audit.level) {
-                SecurityAuditor.SecurityLevel.SECURE  -> Color.parseColor("#00FF88")
-                SecurityAuditor.SecurityLevel.CAUTION -> Color.parseColor("#FFCC00")
-                SecurityAuditor.SecurityLevel.DANGER  -> Color.parseColor("#FF4444")
-            }
-        )
-        holder.tvBadges.text = audit.badges.joinToString(" · ")
-        holder.tvIssues.text = audit.issues.joinToString(" • ").ifBlank { "No issues" }
-    }
+    override fun onSupportNavigateUp(): Boolean { finish(); return true }
 }
