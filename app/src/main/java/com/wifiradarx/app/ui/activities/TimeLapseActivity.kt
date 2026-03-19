@@ -1,113 +1,77 @@
 package com.wifiradarx.app.ui.activities
 
-import android.graphics.Color
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.view.MenuItem
+import android.view.View
+import android.widget.*
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import com.github.mikephil.charting.components.XAxis
-import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
-import com.github.mikephil.charting.data.LineDataSet
-import com.wifiradarx.app.databinding.ActivityTimeLapseBinding
+import androidx.lifecycle.lifecycleScope
+import com.wifiradarx.app.R
+import com.wifiradarx.app.ui.viewmodel.TimeLapseViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class TimeLapseActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityTimeLapseBinding
-    private val handler = Handler(Looper.getMainLooper())
-    private val rssiHistory = mutableListOf<Entry>()
-    private var tick = 0
-    private var isPlaying = false
 
-    private val playbackRunnable = object : Runnable {
-        override fun run() {
-            if (isPlaying) {
-                addDataPoint()
-                handler.postDelayed(this, 500)
-            }
-        }
-    }
+    private val vm: TimeLapseViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityTimeLapseBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_timelapse)
+        supportActionBar?.title = "Time Lapse"
 
-        supportActionBar?.apply {
-            setDisplayHomeAsUpEnabled(true)
-            title = "Time-Lapse Replay"
-        }
+        val seekBar   = findViewById<SeekBar>(R.id.seek_playback)
+        val tvTime    = findViewById<TextView>(R.id.tv_playback_time)
+        val tvSpeed   = findViewById<TextView>(R.id.tv_playback_speed)
+        val btnPlay   = findViewById<Button>(R.id.btn_play_pause)
+        val btnDiff   = findViewById<ToggleButton>(R.id.toggle_diff)
+        val spinSpeed = findViewById<Spinner>(R.id.spin_speed)
 
-        setupChart()
+        val speeds = listOf(0.5f, 1f, 2f, 5f, 10f, 50f)
+        spinSpeed?.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_item,
+            speeds.map { "${it}×" }
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
 
-        binding.playPauseButton.setOnClickListener {
-            isPlaying = !isPlaying
-            binding.playPauseButton.text = if (isPlaying) "⏸ Pause" else "▶ Play"
-            if (isPlaying) handler.post(playbackRunnable)
-        }
-
-        binding.resetButton.setOnClickListener {
-            isPlaying = false
-            binding.playPauseButton.text = "▶ Play"
-            handler.removeCallbacks(playbackRunnable)
-            tick = 0
-            rssiHistory.clear()
-            binding.timeLapseChart.data?.clearValues()
-            binding.timeLapseChart.invalidate()
-        }
-    }
-
-    private fun setupChart() {
-        binding.timeLapseChart.apply {
-            description.isEnabled = false
-            setBackgroundColor(Color.parseColor("#12141D"))
-            xAxis.apply {
-                textColor = Color.WHITE
-                position = XAxis.XAxisPosition.BOTTOM
-                setDrawGridLines(false)
+        spinSpeed?.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                vm.setSpeed(speeds[pos])
+                tvSpeed?.text = "${speeds[pos]}×"
             }
-            axisLeft.apply {
-                textColor = Color.WHITE
-                axisMinimum = -100f
-                axisMaximum = -20f
+        }
+
+        seekBar?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, p: Int, user: Boolean) {
+                vm.setPosition(p / 100f)
+                tvTime?.text = "${p}%"
             }
-            axisRight.isEnabled = false
-            legend.textColor = Color.WHITE
-        }
-    }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {}
+        })
 
-    private fun addDataPoint() {
-        val simRssi = -65f + (Math.sin(tick * 0.3) * 10).toFloat() +
-                (-5..5).random().toFloat()
-        rssiHistory.add(Entry(tick.toFloat(), simRssi))
-        tick++
+        btnPlay?.setOnClickListener { vm.togglePlay() }
+        btnDiff?.setOnCheckedChangeListener { _, _ -> vm.toggleDiff() }
 
-        if (rssiHistory.size > 60) rssiHistory.removeAt(0)
-
-        val dataSet = LineDataSet(rssiHistory.toMutableList(), "RSSI dBm").apply {
-            color = Color.parseColor("#00D4FF")
-            setCircleColor(Color.parseColor("#00D4FF"))
-            valueTextColor = Color.WHITE
-            lineWidth = 2f
-            setDrawCircles(false)
-            setDrawValues(false)
-            mode = LineDataSet.Mode.CUBIC_BEZIER
+        // Playback loop
+        lifecycleScope.launch {
+            while (isActive) {
+                if (vm.isPlaying.value) {
+                    val next = (vm.playbackPosition.value + 0.005f * vm.playbackSpeed.value)
+                        .coerceAtMost(1f)
+                    vm.setPosition(next)
+                    seekBar?.progress = (next * 100).toInt()
+                    if (next >= 1f) vm.togglePlay()
+                }
+                delay(50L)
+            }
         }
 
-        binding.timeLapseChart.data = LineData(dataSet)
-        binding.timeLapseChart.notifyDataSetChanged()
-        binding.timeLapseChart.invalidate()
-        binding.currentRssiText.text = "Current: ${String.format("%.1f", simRssi)} dBm"
-    }
-
-    override fun onPause() {
-        super.onPause()
-        isPlaying = false
-        handler.removeCallbacks(playbackRunnable)
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) { finish(); return true }
-        return super.onOptionsItemSelected(item)
+        lifecycleScope.launch {
+            vm.isPlaying.collect { playing ->
+                btnPlay?.text = if (playing) "⏸ Pause" else "▶ Play"
+            }
+        }
     }
 }

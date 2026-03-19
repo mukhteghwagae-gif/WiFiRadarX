@@ -2,28 +2,28 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
-        android:id="@+id/nav_home"
-        android:icon="@drawable/ic_nav_home"
-        android:title="@string/title_home" />
-
-    <item
-        android:id="@+id/nav_ar"
-        android:icon="@drawable/ic_nav_ar"
-        android:title="@string/title_ar" />
-
-    <item
         android:id="@+id/nav_radar"
-        android:icon="@drawable/ic_nav_radar"
-        android:title="@string/title_radar" />
+        android:icon="@drawable/ic_radar"
+        android:title="@string/nav_radar" />
 
     <item
         android:id="@+id/nav_analytics"
-        android:icon="@drawable/ic_nav_analytics"
-        android:title="@string/title_analytics" />
+        android:icon="@drawable/ic_analytics"
+        android:title="@string/nav_analytics" />
 
     <item
         android:id="@+id/nav_security"
-        android:icon="@drawable/ic_nav_security"
-        android:title="@string/title_security" />
+        android:icon="@drawable/ic_security"
+        android:title="@string/nav_security" />
+
+    <item
+        android:id="@+id/nav_channels"
+        android:icon="@drawable/ic_channel"
+        android:title="@string/nav_channels" />
+
+    <item
+        android:id="@+id/nav_networks"
+        android:icon="@drawable/ic_network_list"
+        android:title="@string/nav_networks" />
 
 </menu>

@@ -1,66 +1,178 @@
 package com.wifiradarx.app.ui.activities
 
-import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Bundle
-import android.widget.Toast
+import android.view.View
+import android.widget.*
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.google.ar.core.*
-import com.wifiradarx.app.ar.renderers.ArrowRenderer
-import com.wifiradarx.app.ar.renderers.HeatmapMeshRenderer
-import com.wifiradarx.app.ar.renderers.PillarRenderer
-import com.wifiradarx.app.databinding.ActivityArMappingBinding
-import javax.microedition.khronos.egl.EGLConfig
-import javax.microedition.khronos.opengles.GL10
+import com.google.ar.core.exceptions.*
+import com.wifiradarx.app.R
+import com.wifiradarx.app.ar.ArRenderer
+import com.wifiradarx.app.ar.DisplayRotationHelper
+import com.wifiradarx.app.ar.ThreatBlip
+import com.wifiradarx.app.ar.WifiBlip
+import com.wifiradarx.app.intelligence.ChannelAnalyzer
+import com.wifiradarx.app.intelligence.IdwInterpolator
+import com.wifiradarx.app.ui.viewmodel.ArViewModel
+import kotlinx.coroutines.launch
 
-class ArMappingActivity : AppCompatActivity(), GLSurfaceView.Renderer {
-    private lateinit var binding: ActivityArMappingBinding
+class ArMappingActivity : AppCompatActivity() {
+
+    private val vm: ArViewModel by viewModels()
+    private lateinit var glView: GLSurfaceView
+    private lateinit var renderer: ArRenderer
+    private lateinit var rotationHelper: DisplayRotationHelper
     private var arSession: Session? = null
-    private val pillarRenderer = PillarRenderer()
-    private val heatmapRenderer = HeatmapMeshRenderer()
-    private val arrowRenderer = ArrowRenderer()
-    private var showHeatmap = true
+    private var arSupported = false
+
+    // Current AR camera pose
+    private var currentPosX = 0f
+    private var currentPosY = 0f
+    private var currentPosZ = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityArMappingBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        supportActionBar?.title = "AR Mapping"
+        setContentView(R.layout.activity_ar_mapping)
 
-        binding.surfaceView.apply {
-            setEGLContextClientVersion(2)
-            setRenderer(this@ArMappingActivity)
-            renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+        glView = findViewById(R.id.gl_surface_view)
+        renderer = ArRenderer(this)
+        rotationHelper = DisplayRotationHelper(this)
+        renderer.setDisplayRotationHelper(rotationHelper)
+
+        glView.setEGLContextClientVersion(2)
+        glView.setRenderer(renderer)
+        glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+
+        setupArCore()
+        setupControls()
+        observeViewModel()
+    }
+
+    private fun setupArCore() {
+        arSupported = try {
+            when (ArCoreApk.getInstance().checkAvailability(this)) {
+                ArCoreApk.Availability.SUPPORTED_INSTALLED -> true
+                ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD,
+                ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED -> {
+                    try {
+                        ArCoreApk.getInstance().requestInstall(this, true)
+                        true
+                    } catch (e: UnavailableUserDeclinedInstallationException) { false }
+                }
+                else -> false
+            }
+        } catch (e: Exception) { false }
+
+        if (arSupported) {
+            try {
+                arSession = Session(this)
+                val config = Config(arSession).apply {
+                    lightEstimationMode = Config.LightEstimationMode.AMBIENT_INTENSITY
+                    planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
+                    updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
+                }
+                arSession?.configure(config)
+                renderer.setSession(arSession!!)
+            } catch (e: Exception) {
+                showArUnsupported()
+            }
+        } else {
+            showArUnsupported()
+        }
+    }
+
+    private fun showArUnsupported() {
+        findViewById<View>(R.id.tv_ar_fallback)?.visibility = View.VISIBLE
+        glView.visibility = View.GONE
+    }
+
+    private fun setupControls() {
+        // Scan button
+        findViewById<Button>(R.id.btn_ar_scan)?.setOnClickListener {
+            vm.saveScan(currentPosX, currentPosY, currentPosZ)
+            Toast.makeText(this, "Scan captured at (${currentPosX.format(1)}, ${currentPosZ.format(1)})", Toast.LENGTH_SHORT).show()
         }
 
-        binding.scanButton.setOnClickListener {
-            Toast.makeText(this, "Scan triggered", Toast.LENGTH_SHORT).show()
+        // Predict mode toggle
+        findViewById<ToggleButton>(R.id.toggle_predict)?.setOnCheckedChangeListener { _, checked ->
+            vm.togglePredictMode()
+            renderer.enableHeatmap = checked
         }
-        binding.predictToggle.setOnCheckedChangeListener { _, checked ->
-            showHeatmap = checked
+
+        // Heatmap toggle
+        findViewById<CheckBox>(R.id.cb_heatmap)?.apply {
+            isChecked = true
+            setOnCheckedChangeListener { _, checked -> renderer.enableHeatmap = checked }
+        }
+
+        // Voxel toggle
+        findViewById<CheckBox>(R.id.cb_voxels)?.setOnCheckedChangeListener { _, checked ->
+            renderer.enableVoxels = checked
+        }
+
+        // Arrow toggle
+        findViewById<CheckBox>(R.id.cb_arrow)?.apply {
+            isChecked = true
+            setOnCheckedChangeListener { _, checked -> renderer.enableArrow = checked }
+        }
+
+        // Height slice
+        findViewById<SeekBar>(R.id.seek_height_slice)?.setOnSeekBarChangeListener(
+            object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar, p: Int, user: Boolean) {
+                    renderer.ySlice = p / 100f * 3f - 1.5f
+                }
+                override fun onStartTrackingTouch(sb: SeekBar) {}
+                override fun onStopTrackingTouch(sb: SeekBar) {}
+            }
+        )
+    }
+
+    private fun observeViewModel() {
+        lifecycleScope.launch {
+            vm.scanResults.collect { results ->
+                val blips = results.mapIndexed { i, sr ->
+                    WifiBlip(
+                        x = currentPosX + (i % 3) * 0.3f - 0.3f,
+                        y = currentPosY,
+                        z = currentPosZ - 0.5f - i * 0.1f,
+                        rssi = sr.level,
+                        ssid = sr.SSID ?: "",
+                        bssid = sr.BSSID ?: ""
+                    )
+                }
+                renderer.blips = blips
+
+                // Feed IDW
+                val samples = blips.map {
+                    IdwInterpolator.Sample(it.x, it.z, it.y, it.rssi.toFloat())
+                }
+                renderer.idwSamples = samples
+            }
+        }
+        lifecycleScope.launch {
+            vm.rogues.collect { rogues ->
+                renderer.threats = rogues.map { r ->
+                    ThreatBlip(r.posX, r.posY, r.posZ, r.ssid)
+                }
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        if (arSession == null) {
-            try {
-                arSession = Session(this).also { s ->
-                    s.configure(Config(s).apply {
-                        updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
-                    })
-                }
-            } catch (e: Exception) {
-                // ARCore unavailable on this device — fallback gracefully
-            }
-        }
-        arSession?.resume()
-        binding.surfaceView.onResume()
+        rotationHelper.onResume()
+        try { arSession?.resume() } catch (_: Exception) {}
+        glView.onResume()
     }
 
     override fun onPause() {
         super.onPause()
-        binding.surfaceView.onPause()
+        glView.onPause()
+        rotationHelper.onPause()
         arSession?.pause()
     }
 
@@ -70,34 +182,5 @@ class ArMappingActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         arSession = null
     }
 
-    // ── GLSurfaceView.Renderer ────────────────────────────────────────────────
-
-    override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        GLES20.glClearColor(0.07f, 0.09f, 0.15f, 1.0f)
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
-        pillarRenderer.init()
-        heatmapRenderer.init()
-        arrowRenderer.init()
-    }
-
-    override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-        GLES20.glViewport(0, 0, width, height)
-        arSession?.setDisplayGeometry(windowManager.defaultDisplay.rotation, width, height)
-    }
-
-    override fun onDrawFrame(gl: GL10?) {
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-        val session = arSession ?: return
-        val frame = try { session.update() } catch (e: Exception) { return }
-        val camera = frame.camera
-
-        val proj = FloatArray(16)
-        camera.getProjectionMatrix(proj, 0, 0.1f, 100.0f)
-        val view = FloatArray(16)
-        camera.getViewMatrix(view, 0)
-
-        pillarRenderer.draw(view, proj)
-        if (showHeatmap) heatmapRenderer.draw(view, proj)
-        arrowRenderer.draw(view, proj)
-    }
+    private fun Float.format(d: Int) = "%.${d}f".format(this)
 }
