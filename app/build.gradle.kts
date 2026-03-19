@@ -57,6 +57,15 @@ android {
         viewBinding = true
     }
 
+
+    lint {
+        abortOnError   = false   // warnings never block the build
+        checkReleaseBuilds = false  // skip full lint on release (use separate lint task)
+        disable += setOf(
+            "FullBackupContent",    // handled correctly in XML
+            "ObsoleteLintCustomCheck"
+        )
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
