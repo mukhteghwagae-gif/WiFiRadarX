@@ -103,7 +103,10 @@ class WiFiRepository(
         rescanJob = repoScope.launch {
             delay(RESCAN_INTERVAL_MS)
             if (_isScanning.value) {
-                try { @Suppress("DEPRECATION"); wifiManager.startScan() } catch (_: Exception) {}
+                try {
+                    @Suppress("DEPRECATION")
+                    wifiManager.startScan()
+                } catch (_: Exception) {}
             }
         }
     }
