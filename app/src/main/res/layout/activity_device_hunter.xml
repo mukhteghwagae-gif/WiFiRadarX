@@ -1,27 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@color/background">
 
-    <TextView
-        android:id="@+id/deviceCountText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:text="Scanning…"
-        android:textColor="@color/onBackground"
-        android:textSize="16sp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    <LinearLayout
+        android:id="@+id/layout_device_hunter"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="16dp">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/deviceList"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@id/deviceCountText"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="🎯 Interference Hunt Mode"
+            android:textColor="@color/primary"
+            android:textSize="18sp" android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Walk to a spot → tap its cell → repeat from ≥ 3 positions"
+            android:textColor="#888888" android:textSize="12sp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Source result card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/surface">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <TextView android:id="@+id/tv_source_info"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Tap grid cells at your current position\nto add measurements (need ≥ 3)."
+                    android:textColor="@color/on_surface"
+                    android:textSize="14sp" android:lineSpacingMultiplier="1.5" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView android:id="@+id/tv_measurement_count"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="0 / 3+ measurements collected"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="13sp" android:layout_marginBottom="12dp" />
+
+        <!-- FIX: FrameLayout placeholder for the programmatic tap-grid -->
+        <FrameLayout
+            android:id="@+id/fl_hunter_grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp" />
+
+        <Button android:id="@+id/btn_reset_hunt"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Reset Hunt" />
+
+    </LinearLayout>
+</ScrollView>

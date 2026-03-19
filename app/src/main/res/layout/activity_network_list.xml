@@ -1,27 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background">
+    android:background="@color/background"
+    android:orientation="vertical">
 
+    <!-- Band filter tabs -->
+    <LinearLayout
+        android:id="@+id/ll_band_tabs"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@color/surface"
+        android:orientation="horizontal" />
+
+    <!-- Count header -->
     <TextView
-        android:id="@+id/networkCountText"
-        android:layout_width="wrap_content"
+        android:id="@+id/tv_network_count"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:text="Scanning…"
-        android:textColor="@color/onBackground"
-        android:textSize="16sp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:background="@color/background"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="6dp"
+        android:text="0 networks"
+        android:textColor="@color/on_surface_variant"
+        android:textSize="12sp" />
 
+    <!-- Network list -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/networkRecycler"
+        android:id="@+id/rv_networks"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@id/networkCountText"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:padding="4dp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

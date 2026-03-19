@@ -1,0 +1,210 @@
+name: Build WiFiRadarX APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:         # allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    name: Build Debug + Release APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # ── 2. Java 17 ───────────────────────────────────────────────────────────
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # ── 3. Android SDK (official action, handles licenses automatically) ──────
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required SDK components
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+
+      # ── 4. gradle-wrapper.jar (binary — not committed, must be downloaded) ────
+      - name: Download gradle-wrapper.jar
+        run: |
+          mkdir -p gradle/wrapper
+          # Try three sources in order of reliability
+          DL_SUCCESS=false
+
+          # Source 1: GitHub raw (most reliable)
+          if curl -fsSL --retry 3 --retry-delay 5 --max-time 60 \
+              "https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar" \
+              -o gradle/wrapper/gradle-wrapper.jar; then
+            DL_SUCCESS=true
+            echo "✅ Downloaded from GitHub raw"
+
+          # Source 2: Gradle distribution zip (fallback)
+          elif curl -fsSL --retry 3 --max-time 120 \
+              "https://services.gradle.org/distributions/gradle-8.7-bin.zip" \
+              -o /tmp/gradle.zip; then
+            echo "Extracting wrapper jar from distribution..."
+            # The jar is inside the zip under gradle-8.7/lib/plugins/
+            unzip -p /tmp/gradle.zip "gradle-8.7/lib/plugins/gradle-wrapper-8.7.jar" \
+              > gradle/wrapper/gradle-wrapper.jar 2>/dev/null || \
+            unzip -j /tmp/gradle.zip "*/gradle-wrapper.jar" \
+              -d gradle/wrapper/ 2>/dev/null
+            DL_SUCCESS=true
+            echo "✅ Extracted from distribution zip"
+          fi
+
+          if [ "$DL_SUCCESS" != "true" ]; then
+            echo "❌ Could not obtain gradle-wrapper.jar"
+            exit 1
+          fi
+
+          ls -lh gradle/wrapper/gradle-wrapper.jar
+          # Sanity check: must be a JAR (ZIP) file
+          file gradle/wrapper/gradle-wrapper.jar | grep -i "zip\|java\|archive" || \
+            (echo "Downloaded file is not a valid JAR"; exit 1)
+
+      # ── 5. Gradle cache ──────────────────────────────────────────────────────
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts','**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # ── 6. Make gradlew executable ───────────────────────────────────────────
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # ── 7. Generate keystore (debug key — good for testing, safe to commit) ──
+      - name: Generate debug keystore
+        run: |
+          keytool -genkeypair \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=WiFiRadarX,OU=Debug,O=WiFiRadarX,L=PK,ST=KPK,C=PK" \
+            -noprompt
+          echo "✅ Keystore: $(ls -lh debug.keystore | awk '{print $5}')"
+
+      # ── 8. Build debug APK ───────────────────────────────────────────────────
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          GRADLE_OPTS: >-
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.workers.max=2
+            -Dorg.gradle.jvmargs=-Xmx2048m
+
+      # ── 9. Build release APK ─────────────────────────────────────────────────
+      - name: Build release APK
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          GRADLE_OPTS: >-
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.workers.max=2
+            -Dorg.gradle.jvmargs=-Xmx2048m
+
+      # ── 10. Locate built APKs ────────────────────────────────────────────────
+      - name: Locate APKs
+        id: apks
+        run: |
+          REL=$(find . -name "*.apk" -path "*/release/*" | head -1)
+          DBG=$(find . -name "*.apk" -path "*/debug/*"   | head -1)
+          echo "release=$REL" >> $GITHUB_OUTPUT
+          echo "debug=$DBG"   >> $GITHUB_OUTPUT
+          echo "Release APK : $REL  ($(du -sh "$REL" | cut -f1))"
+          echo "Debug APK   : $DBG  ($(du -sh "$DBG" | cut -f1))"
+
+      # ── 11. Sign release APK ─────────────────────────────────────────────────
+      - name: Sign release APK
+        run: |
+          SIGNER="${ANDROID_HOME}/build-tools/34.0.0/apksigner"
+          $SIGNER sign \
+            --ks debug.keystore \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --ks-key-alias androiddebugkey \
+            --out WiFiRadarX-v3.0.0-release.apk \
+            "${{ steps.apks.outputs.release }}"
+
+          # Also rename debug APK
+          cp "${{ steps.apks.outputs.debug }}" WiFiRadarX-v3.0.0-debug.apk
+          echo "✅ Both APKs ready"
+
+      # ── 12. Verify signature ─────────────────────────────────────────────────
+      - name: Verify APK signature
+        run: |
+          SIGNER="${ANDROID_HOME}/build-tools/34.0.0/apksigner"
+          $SIGNER verify --verbose WiFiRadarX-v3.0.0-release.apk
+          echo "✅ Verified"
+
+      # ── 13. Checksums ────────────────────────────────────────────────────────
+      - name: Compute checksums
+        id: sha
+        run: |
+          SHA_R=$(sha256sum WiFiRadarX-v3.0.0-release.apk | awk '{print $1}')
+          SIZE_R=$(du -sh WiFiRadarX-v3.0.0-release.apk | awk '{print $1}')
+          SHA_D=$(sha256sum WiFiRadarX-v3.0.0-debug.apk   | awk '{print $1}')
+          SIZE_D=$(du -sh WiFiRadarX-v3.0.0-debug.apk     | awk '{print $1}')
+          echo "sha_release=$SHA_R"   >> $GITHUB_OUTPUT
+          echo "size_release=$SIZE_R" >> $GITHUB_OUTPUT
+          echo "sha_debug=$SHA_D"     >> $GITHUB_OUTPUT
+          echo "size_debug=$SIZE_D"   >> $GITHUB_OUTPUT
+
+      # ── 14. Upload both APKs as artifacts ────────────────────────────────────
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WiFiRadarX-v3.0.0-release
+          path: WiFiRadarX-v3.0.0-release.apk
+          retention-days: 30
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WiFiRadarX-v3.0.0-debug
+          path: WiFiRadarX-v3.0.0-debug.apk
+          retention-days: 30
+
+      # ── 15. Job summary ──────────────────────────────────────────────────────
+      - name: Write job summary
+        run: |
+          {
+            echo "## ✅ WiFiRadarX v3.0.0 — Build Complete"
+            echo ""
+            echo "| | Release | Debug |"
+            echo "|---|---|---|"
+            echo "| APK | \`WiFiRadarX-v3.0.0-release.apk\` | \`WiFiRadarX-v3.0.0-debug.apk\` |"
+            echo "| Size | ${{ steps.sha.outputs.size_release }} | ${{ steps.sha.outputs.size_debug }} |"
+            echo "| SHA256 | \`${{ steps.sha.outputs.sha_release }}\` | \`${{ steps.sha.outputs.sha_debug }}\` |"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Branch | \`${{ github.ref_name }}\` |"
+            echo "| Built  | $(date -u +'%Y-%m-%d %H:%M UTC') |"
+            echo "| Min SDK | 26 (Android 8.0 Oreo) |"
+            echo "| Target SDK | 34 (Android 14) |"
+            echo ""
+            echo "> 📲 **How to install**: Download the APK artifact above → transfer to phone → enable *Install unknown apps* → tap to install"
+          } >> $GITHUB_STEP_SUMMARY

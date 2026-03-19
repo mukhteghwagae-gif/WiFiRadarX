@@ -1,104 +1,156 @@
 package com.wifiradarx.app.ui.activities
 
+import android.Manifest
 import android.content.Intent
-import android.net.wifi.WifiManager
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.wifiradarx.app.R
-import com.wifiradarx.app.WiFiRadarXApplication
-import com.wifiradarx.app.databinding.ActivityMainBinding
+import com.wifiradarx.app.ui.viewmodel.MainViewModel
+import com.wifiradarx.app.workers.BackgroundMonitorWorker
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
+    private val vm: MainViewModel by viewModels()
 
-    data class ActionItem(val icon: String, val title: String, val subtitle: String, val targetClass: Class<*>)
+    private val requiredPermissions = buildList {
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            add(Manifest.permission.BLUETOOTH_SCAN)
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        add(Manifest.permission.CAMERA)
+    }
 
-    private val actions = listOf(
-        ActionItem("📡", "AR Mapping",     "3D signal overlay",  ArMappingActivity::class.java),
-        ActionItem("🔴", "Live Radar",     "Real-time sweep",    LiveRadarActivity::class.java),
-        ActionItem("📊", "Analytics",      "Signal history",     AnalyticsDashboardActivity::class.java),
-        ActionItem("🔒", "Security Audit", "Network threats",    SecurityAuditActivity::class.java),
-        ActionItem("📶", "Channels",       "Congestion map",     ChannelAnalyzerActivity::class.java),
-        ActionItem("🔍", "Device Hunter",  "Find devices",       DeviceHunterActivity::class.java),
-        ActionItem("⏱️", "Time Lapse",     "Signal over time",   TimeLapseActivity::class.java),
-        ActionItem("🕸️", "Mesh Optimizer","AP placement",        MeshOptimizerActivity::class.java),
-        ActionItem("🌡️", "Heatmap",       "Coverage map",       HeatmapActivity::class.java),
-        ActionItem("📋", "Network List",   "All networks",       NetworkListActivity::class.java),
-        ActionItem("⚙️", "Settings",       "Configure app",      SettingsActivity::class.java),
-    )
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            vm.startScanning()
+        } else {
+            Toast.makeText(this, "Location permission required for WiFi scanning", Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_main)
 
-        setupActionGrid()
-        updateSignalInfo()
+        setupBottomNav()
+        setupQuickActions()
+        observeViewModel()
+        checkAndRequestPermissions()
+    }
 
-        binding.bottomNav.setOnItemSelectedListener { item ->
+    private fun setupBottomNav() {
+        val nav = findViewById<BottomNavigationView>(R.id.bottom_nav)
+        nav.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.nav_home     -> true
-                R.id.nav_ar       -> { launch(ArMappingActivity::class.java); true }
-                R.id.nav_radar    -> { launch(LiveRadarActivity::class.java); true }
-                R.id.nav_analytics-> { launch(AnalyticsDashboardActivity::class.java); true }
-                R.id.nav_security -> { launch(SecurityAuditActivity::class.java); true }
-                else -> true
+                R.id.nav_radar -> { /* already on main */ true }
+                R.id.nav_analytics -> {
+                    startActivity(Intent(this, AnalyticsDashboardActivity::class.java))
+                    true
+                }
+                R.id.nav_security -> {
+                    startActivity(Intent(this, SecurityAuditActivity::class.java))
+                    true
+                }
+                R.id.nav_channels -> {
+                    startActivity(Intent(this, ChannelAnalyzerActivity::class.java))
+                    true
+                }
+                R.id.nav_networks -> {
+                    startActivity(Intent(this, NetworkListActivity::class.java))
+                    true
+                }
+                else -> false
             }
         }
     }
 
-    private fun setupActionGrid() {
-        binding.actionGrid.layoutManager = GridLayoutManager(this, 2)
-        binding.actionGrid.adapter = object : RecyclerView.Adapter<ActionVH>() {
-            override fun getItemCount() = actions.size
-            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ActionVH {
-                val v = LayoutInflater.from(parent.context)
-                    .inflate(R.layout.item_action_card, parent, false)
-                return ActionVH(v)
+    private fun setupQuickActions() {
+        // Quick action cards
+        mapOf(
+            R.id.card_ar to ArMappingActivity::class.java,
+            R.id.card_radar to LiveRadarActivity::class.java,
+            R.id.card_heatmap to HeatmapActivity::class.java,
+            R.id.card_mesh to MeshOptimizerActivity::class.java,
+            R.id.card_hunter to DeviceHunterActivity::class.java,
+            R.id.card_timelapse to TimeLapseActivity::class.java
+        ).forEach { (viewId, actClass) ->
+            findViewById<MaterialCardView>(viewId)?.setOnClickListener {
+                startActivity(Intent(this, actClass))
             }
-            override fun onBindViewHolder(holder: ActionVH, position: Int) {
-                val a = actions[position]
-                holder.icon.text     = a.icon
-                holder.title.text    = a.title
-                holder.subtitle.text = a.subtitle
-                holder.card.setOnClickListener { launch(a.targetClass) }
+        }
+
+        findViewById<View>(R.id.card_settings)?.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        // FAB: trigger manual scan
+        findViewById<FloatingActionButton>(R.id.fab_scan)?.setOnClickListener {
+            vm.triggerScan()
+            Toast.makeText(this, "Scan triggered…", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun observeViewModel() {
+        lifecycleScope.launch {
+            vm.scanResults.collect { results ->
+                val tvCount = findViewById<TextView>(R.id.tv_network_count)
+                val tvBest = findViewById<TextView>(R.id.tv_best_signal)
+                val tvStatus = findViewById<TextView>(R.id.tv_scan_status)
+
+                tvCount?.text = "${results.size} networks"
+                val best = results.maxByOrNull { it.level }
+                tvBest?.text = if (best != null) "Strongest: ${best.SSID} (${best.level} dBm)" else "No signal"
+                tvStatus?.text = if (vm.isWifiEnabled()) "WiFi: ON" else "WiFi: OFF"
+            }
+        }
+        lifecycleScope.launch {
+            vm.rogues.collect { rogues ->
+                val tvAlert = findViewById<TextView>(R.id.tv_rogue_alert)
+                tvAlert?.visibility = if (rogues.isNotEmpty()) View.VISIBLE else View.GONE
+                tvAlert?.text = "⚠ ${rogues.size} rogue AP suspect(s) detected"
             }
         }
     }
 
-    private fun updateSignalInfo() {
-        try {
-            val wm = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
-            val info = wm.connectionInfo
-            if (info != null && info.networkId != -1) {
-                binding.rssiText.text = "${info.rssi} dBm"
-                val ssid = info.ssid?.removeSurrounding("\"") ?: "Unknown"
-                binding.ssidText.text = "Connected: $ssid"
-            } else {
-                binding.rssiText.text = "-- dBm"
-                binding.ssidText.text = "Not connected"
-            }
-        } catch (e: Exception) {
-            binding.rssiText.text = "-- dBm"
-            binding.ssidText.text = "Permission required"
+    private fun checkAndRequestPermissions() {
+        val missing = requiredPermissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) {
+            vm.startScanning()
+            BackgroundMonitorWorker.schedule(this)
+        } else {
+            permissionLauncher.launch(missing.toTypedArray())
         }
     }
 
-    private fun launch(cls: Class<*>) = startActivity(Intent(this, cls))
+    override fun onResume() {
+        super.onResume()
+        vm.triggerScan()
+    }
 
-    class ActionVH(v: View) : RecyclerView.ViewHolder(v) {
-        val card: MaterialCardView = v.findViewById(R.id.actionCard)
-        val icon: TextView         = v.findViewById(R.id.actionIcon)
-        val title: TextView        = v.findViewById(R.id.actionTitle)
-        val subtitle: TextView     = v.findViewById(R.id.actionSubtitle)
+    override fun onDestroy() {
+        super.onDestroy()
+        vm.stopScanning()
     }
 }

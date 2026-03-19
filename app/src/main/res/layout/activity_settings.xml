@@ -1,66 +1,139 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <LinearLayout android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Scan Settings"
-            android:textColor="@color/primary"
-            android:textStyle="bold"
-            android:textSize="13sp"
-            android:layout_marginBottom="8dp" />
+        <!-- Scan settings -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="12dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/backgroundScanSwitch"
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Scan Settings" android:textColor="@color/primary"
+                    android:textSize="14sp" android:textStyle="bold" android:layout_marginBottom="12dp" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Scan Interval"
+                        android:textColor="@color/on_surface" android:textSize="13sp" />
+                    <TextView android:id="@+id/tv_scan_interval_val"
+                        android:layout_width="48dp" android:layout_height="wrap_content"
+                        android:text="5s" android:textColor="@color/primary"
+                        android:textSize="13sp" android:gravity="end" />
+                </LinearLayout>
+                <SeekBar android:id="@+id/seek_scan_interval"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:max="60" android:progress="5" android:layout_marginBottom="12dp" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="IDW Power"
+                        android:textColor="@color/on_surface" android:textSize="13sp" />
+                    <TextView android:id="@+id/tv_idw_power_val"
+                        android:layout_width="48dp" android:layout_height="wrap_content"
+                        android:text="2.0" android:textColor="@color/primary"
+                        android:textSize="13sp" android:gravity="end" />
+                </LinearLayout>
+                <SeekBar android:id="@+id/seek_idw_power"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:max="40" android:progress="10" android:layout_marginBottom="12dp" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Dead Zone Threshold"
+                        android:textColor="@color/on_surface" android:textSize="13sp" />
+                    <TextView android:id="@+id/tv_dead_threshold_val"
+                        android:layout_width="64dp" android:layout_height="wrap_content"
+                        android:text="-75 dBm" android:textColor="@color/primary"
+                        android:textSize="13sp" android:gravity="end" />
+                </LinearLayout>
+                <SeekBar android:id="@+id/seek_dead_threshold"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:max="50" android:progress="25" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Environment preset -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="12dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Environment Preset" android:textColor="@color/primary"
+                    android:textSize="14sp" android:textStyle="bold" android:layout_marginBottom="8dp" />
+                <Spinner android:id="@+id/spin_env_preset"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- AR toggles -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="12dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="AR Features" android:textColor="@color/primary"
+                    android:textSize="14sp" android:textStyle="bold" android:layout_marginBottom="8dp" />
+                <CheckBox android:id="@+id/cb_ar_heatmap"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="IDW Heatmap Mesh" android:textColor="@color/on_surface"
+                    android:checked="true" />
+                <CheckBox android:id="@+id/cb_ar_voxels"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="3D Voxel Map" android:textColor="@color/on_surface" />
+                <CheckBox android:id="@+id/cb_ar_arrow"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Direction Arrow" android:textColor="@color/on_surface"
+                    android:checked="true" />
+                <CheckBox android:id="@+id/cb_ar_threats"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Threat Alert Renderer" android:textColor="@color/on_surface"
+                    android:checked="true" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Background monitoring -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp" app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="12dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="Background Monitoring"
+                    android:textColor="@color/on_surface" android:textSize="14sp" />
+                <Switch android:id="@+id/switch_background"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_save_settings"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp"
-            android:text="Background Monitoring"
-            android:textColor="@color/onSurface" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="8dp"
-            android:text="AR Settings"
-            android:textColor="@color/primary"
-            android:textStyle="bold"
-            android:textSize="13sp" />
-
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/arHeatmapSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp"
-            android:text="Show Signal Heatmap in AR"
-            android:textColor="@color/onSurface" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="8dp"
-            android:text="Export Settings"
-            android:textColor="@color/primary"
-            android:textStyle="bold"
-            android:textSize="13sp" />
-
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/autoExportSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Auto-export Session Data"
-            android:textColor="@color/onSurface" />
+            android:text="Save Settings"
+            android:textSize="15sp" />
 
     </LinearLayout>
 </ScrollView>
